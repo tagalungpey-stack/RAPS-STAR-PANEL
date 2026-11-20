@@ -1,6 +1,7 @@
 import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
 import {
   getAuth, onAuthStateChanged, signInWithEmailAndPassword, signInWithPopup,
+  signInWithRedirect, getRedirectResult,
   GoogleAuthProvider, signOut, createUserWithEmailAndPassword, updateProfile,
   sendPasswordResetEmail
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
@@ -778,15 +779,47 @@ if (lupaSandi) lupaSandi.addEventListener("click", async () => {
   }
 });
 
+/* Di HP (Chrome Android/Safari) jendela popup Google sering langsung
+ * ditutup browser sehingga muncul "auth/popup-closed-by-user". Untuk HP
+ * dipakai pengalihan halaman (redirect), yang tidak kena blokir popup. */
+const ponsel = /Android|iPhone|iPad|iPod|Mobile|Opera Mini/i.test(navigator.userAgent);
+
+async function masukGoogle() {
+  const provider = new GoogleAuthProvider();
+  provider.setCustomParameters({ prompt: "select_account" });
+  if (ponsel) { await signInWithRedirect(auth, provider); return; }
+  try {
+    await signInWithPopup(auth, provider);
+  } catch (e) {
+    const kode = e?.code || "";
+    if (/popup-closed-by-user|popup-blocked|cancelled-popup-request|operation-not-supported/i.test(kode)) {
+      await signInWithRedirect(auth, provider);
+      return;
+    }
+    throw e;
+  }
+}
+
 $("tombolGoogle").addEventListener("click", async () => {
   $("pesanLogin").className = "pesan info";
   $("pesanLogin").textContent = "Membuka Google…";
   try {
-    await signInWithPopup(auth, new GoogleAuthProvider());
+    await masukGoogle();
   } catch (e) {
     $("pesanLogin").className = "pesan";
     $("pesanLogin").textContent = pesanAuth(e);
   }
+});
+
+/* Hasil pengalihan Google: diproses saat halaman panel terbuka lagi. */
+getRedirectResult(auth).then((r) => {
+  if (r && r.user) {
+    $("pesanLogin").className = "pesan info";
+    $("pesanLogin").textContent = "Masuk sebagai " + (r.user.email || "akun Google") + "…";
+  }
+}).catch((e) => {
+  $("pesanLogin").className = "pesan";
+  $("pesanLogin").textContent = pesanAuth(e);
 });
 
 $("loginSandi").addEventListener("keydown", (e) => { if (e.key === "Enter") $("tombolMasuk").click(); });
@@ -797,6 +830,8 @@ function pesanAuth(e) {
     return "Email atau password salah.";
   if (kode.includes("unauthorized-domain")) return "Domain panel ini belum diizinkan di Firebase Authentication.";
   if (kode.includes("popup-blocked")) return "Popup diblokir browser. Izinkan popup lalu coba lagi.";
+  if (kode.includes("popup-closed-by-user") || kode.includes("cancelled-popup-request"))
+    return "Jendela Google tertutup sebelum selesai. Ketuk Masuk dengan Google sekali lagi, atau masuk memakai email dan sandi.";
   if (kode.includes("too-many-requests")) return "Terlalu banyak percobaan. Tunggu beberapa menit.";
   return e?.message || "Gagal masuk.";
 }
