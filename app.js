@@ -6,7 +6,7 @@ import {
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 import {
   getFirestore, collection, doc, getDoc as fsGetDoc, getDocs as fsGetDocs,
-  setDoc as fsSetDoc, deleteDoc as fsDeleteDoc,
+  setDoc as fsSetDoc, updateDoc as fsUpdateDoc, deleteField, deleteDoc as fsDeleteDoc,
   query, orderBy, limit, where, serverTimestamp, enableIndexedDbPersistence
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import {
@@ -2284,7 +2284,82 @@ const DOMPET_BASE = DOMPET_SEHOST ? location.origin : "https://viza.43-156-99-4.
 const WALLET_KEY = "sb_publishable_4PxD2LedOsBgIJyHLkM47A_bImSQI2W";
 const OPS_TANPA_UID = ["coin_all", "reset_all", "reset_gem_all", "reset_all_assets", "delete_users", "manual_pending", "manual_all", "pay_get", "pay_set"];
 
+/* ================= panel staf lewat Firestore (tanpa server dompet lama) =================
+ * Hak manager/admin, stok item, dan stok coin disimpan di koleksi stafApk/{uid}.
+ * Dokumen: { uid, role, manager, aktif, coins, stok: { itemId: {kind,name,days} } }
+ * Satu akun bisa punya dua peran, jadi dokumen memuat peran di sub-peta "peran".
+ */
+const OPS_STAF = ["panel_grant", "panel_revoke", "panel_list", "panel_stock_list", "panel_stock_add", "panel_stock_del", "panel_coin_add", "panel_coin_set"];
+
+async function stafOp(p) {
+  if (!auth.currentUser) throw new Error("Belum login");
+  const uid = p.uid;
+  const ref = uid && uid !== "-" ? doc(db, "stafApk", uid) : null;
+  const baca = async () => { const s = await getDoc(ref); return s.exists() ? s.data() : { uid, peran: {}, stok: {} }; };
+  const peranBawaan = (d) => Object.keys(d.peran || {})[0] || "manager";
+
+  switch (p.op) {
+    case "panel_grant": {
+      const d = await baca();
+      d.peran = d.peran || {};
+      d.peran[p.role] = { aktif: true, manager: p.manager || "", coins: Number((d.peran[p.role] || {}).coins) || 0 };
+      await setDoc(ref, { uid, peran: d.peran, jabatanApk: p.role, aktif: true, diperbarui: serverTimestamp() }, { merge: true });
+      return { ok: true };
+    }
+    case "panel_revoke": {
+      const d = await baca();
+      const peran = d.peran || {};
+      if (p.role && peran[p.role]) peran[p.role].aktif = false;
+      else Object.keys(peran).forEach((k) => { peran[k].aktif = false; });
+      const masihAda = Object.values(peran).some((x) => x.aktif);
+      await setDoc(ref, { uid, peran, aktif: masihAda, diperbarui: serverTimestamp() }, { merge: true });
+      return { ok: true };
+    }
+    case "panel_list": {
+      const snap = await getDocs(collection(db, "stafApk"));
+      const list = [];
+      snap.forEach((s) => {
+        const d = s.data();
+        const stokJumlah = Object.keys(d.stok || {}).length;
+        const peran = d.peran || (d.jabatanApk ? { [d.jabatanApk]: { aktif: d.aktif !== false, coins: d.coins || 0 } } : {});
+        Object.entries(peran).forEach(([role, v]) => {
+          list.push({ uid: s.id, role, active: v.aktif !== false, stok: stokJumlah, coins: Number(v.coins) || 0 });
+        });
+      });
+      return { ok: true, list };
+    }
+    case "panel_stock_list": {
+      const d = await baca();
+      const list = Object.entries(d.stok || {}).map(([item_id, v]) => ({ item_id, kind: v.kind, name: v.name, days: v.days }));
+      return { ok: true, list };
+    }
+    case "panel_stock_add": {
+      const kunci = String(p.itemId).replace(/[.#$\[\]/]/g, "_");
+      await setDoc(ref, { uid, stok: { [kunci]: { kind: p.kind || "", name: p.name || p.itemId, days: Number(p.days) || 30, itemId: p.itemId } }, diperbarui: serverTimestamp() }, { merge: true });
+      return { ok: true };
+    }
+    case "panel_stock_del": {
+      const kunci = String(p.itemId).replace(/[.#$\[\]/]/g, "_");
+      await fsUpdateDoc(ref, { ["stok." + kunci]: deleteField(), diperbarui: serverTimestamp() });
+      return { ok: true };
+    }
+    case "panel_coin_add":
+    case "panel_coin_set": {
+      const d = await baca();
+      const role = p.role || peranBawaan(d);
+      const peran = d.peran || {};
+      const lama = Number((peran[role] || {}).coins) || 0;
+      const baru = p.op === "panel_coin_add" ? lama + (Number(p.coins) || 0) : (Number(p.coins) || 0);
+      peran[role] = { ...(peran[role] || { aktif: true, manager: "" }), coins: baru };
+      await setDoc(ref, { uid, peran, diperbarui: serverTimestamp() }, { merge: true });
+      return { ok: true, coins: baru };
+    }
+  }
+  throw new Error("Operasi tidak dikenal: " + p.op);
+}
+
 async function walletAdmin(p) {
+  if (OPS_STAF.includes(p.op)) return stafOp(p);
   const u = auth.currentUser;
   if (!u) throw new Error("Belum login");
   if (OPS_TANPA_UID.includes(p.op) && !p.uid) p = { ...p, uid: "-" };
