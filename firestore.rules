@@ -1,9 +1,9 @@
 rules_version = '2';
 
 // ============================================================
-// Viza Chat - Firestore Rules
+// RAPS STAR - Firestore Rules
 // Versi panel developer:
-//  - owner  : bangexx01@gmail.com (selalu boleh)
+//  - owner  : fedli840@gmail.com (selalu boleh)
 //  - admin   : email yang terdaftar di koleksi panelAdmins
 //  - user    : hanya data miliknya sendiri
 // Tempel seluruh isi file ini ke Firebase Console
@@ -25,7 +25,7 @@ service cloud.firestore {
     function isPemilik() {
       return signedIn()
         && request.auth.token.email != null
-        && request.auth.token.email.lower() == "bangexx01@gmail.com";
+        && request.auth.token.email.lower() == "fedli840@gmail.com";
     }
 
     // Admin yang didaftarkan lewat menu Pengaturan di panel
