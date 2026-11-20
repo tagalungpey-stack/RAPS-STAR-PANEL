@@ -232,6 +232,12 @@ service cloud.firestore {
       allow read, write: if isAdmin();
     }
 
+    // daftar berkas hasil unggahan panel (Firebase Storage)
+    match /aset/{id} {
+      allow read: if signedIn();
+      allow write: if isAdmin();
+    }
+
     // ---------- keluarga ----------
     match /families/{fid} {
       allow read: if signedIn();

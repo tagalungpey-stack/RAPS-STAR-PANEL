@@ -15,7 +15,7 @@
       "$roomId": {
         ".read": "auth != null",
         "$index": {
-          ".write": "auth != null && (data.child('uid').val() === auth.uid || newData.child('uid').val() === auth.uid || root.child('roomsPub').child($roomId).child('ownerUid').val() === auth.uid || auth.token.email === 'bangexx01@gmail.com')",
+          ".write": "auth != null && (data.child('uid').val() === auth.uid || newData.child('uid').val() === auth.uid || root.child('roomsPub').child($roomId).child('ownerUid').val() === auth.uid || auth.token.email === 'fedli840@gmail.com')",
           ".validate": "!newData.exists() || (newData.hasChildren(['uid', 'muted']) && newData.child('uid').isString() && newData.child('muted').isBoolean())"
         }
       }
@@ -23,7 +23,7 @@
     "locks": {
       "$roomId": {
         ".read": "auth != null",
-        ".write": "auth != null && (root.child('roomsPub').child($roomId).child('ownerUid').val() === auth.uid || auth.token.email === 'bangexx01@gmail.com')"
+        ".write": "auth != null && (root.child('roomsPub').child($roomId).child('ownerUid').val() === auth.uid || auth.token.email === 'fedli840@gmail.com')"
       }
     },
     "messages": {
@@ -51,7 +51,7 @@
     "roomsPub": {
       ".read": "auth != null",
       "$roomId": {
-        ".write": "auth != null && (auth.token.email === 'bangexx01@gmail.com' || newData.child('ownerUid').val() === auth.uid || data.child('ownerUid').val() === auth.uid)"
+        ".write": "auth != null && (auth.token.email === 'fedli840@gmail.com' || newData.child('ownerUid').val() === auth.uid || data.child('ownerUid').val() === auth.uid)"
       }
     },
     "rank": {
@@ -73,20 +73,20 @@
         ".read": true
       },
       "$uid": {
-        ".write": "auth != null && (auth.uid === $uid || auth.token.email === 'bangexx01@gmail.com' || root.child('stafPanel').child(auth.uid).val() === true)"
+        ".write": "auth != null && (auth.uid === $uid || auth.token.email === 'fedli840@gmail.com' || root.child('stafPanel').child(auth.uid).val() === true)"
       }
     },
     "blacklist": {
       "$roomId": {
         ".read": "auth != null",
         "$uid": {
-          ".write": "auth != null && (root.child('roomsPub').child($roomId).child('ownerUid').val() === auth.uid || auth.token.email === 'bangexx01@gmail.com')"
+          ".write": "auth != null && (root.child('roomsPub').child($roomId).child('ownerUid').val() === auth.uid || auth.token.email === 'fedli840@gmail.com')"
         }
       }
     },
     "rocketCfg": {
       ".read": "auth != null",
-      ".write": "auth != null && (auth.token.email === 'bangexx01@gmail.com')"
+      ".write": "auth != null && (auth.token.email === 'fedli840@gmail.com')"
     },
     "rocket": {
       "$roomId": {
@@ -155,7 +155,7 @@
     },
     "cashbackCfg": {
       ".read": "auth != null",
-      ".write": "auth != null && (auth.token.email === 'bangexx01@gmail.com')"
+      ".write": "auth != null && (auth.token.email === 'fedli840@gmail.com')"
     },
     "giftCombo": {
       "$roomId": {
@@ -255,13 +255,13 @@
     },
     "vipCfg": {
       ".read": "auth != null",
-      ".write": "auth != null && (auth.token.email === 'bangexx01@gmail.com')"
+      ".write": "auth != null && (auth.token.email === 'fedli840@gmail.com')"
     },
     "ids": {
       ".read": "auth != null",
       "u": {
         "$uid": {
-          ".write": "auth != null && (auth.uid === $uid || auth.token.email === 'bangexx01@gmail.com')"
+          ".write": "auth != null && (auth.uid === $uid || auth.token.email === 'fedli840@gmail.com')"
         }
       },
       "i": {
@@ -297,30 +297,30 @@
     "pengumuman": {
       ".read": "auth != null",
       "$id": {
-        ".write": "auth != null && (auth.token.email === 'bangexx01@gmail.com' || root.child('stafPanel').child(auth.uid).val() === true)",
+        ".write": "auth != null && (auth.token.email === 'fedli840@gmail.com' || root.child('stafPanel').child(auth.uid).val() === true)",
         ".validate": "!newData.exists() || newData.hasChildren(['title','at'])"
       }
     },
     "banners": {
       ".read": "auth != null",
       "$id": {
-        ".write": "auth != null && (auth.token.email === 'bangexx01@gmail.com')"
+        ".write": "auth != null && (auth.token.email === 'fedli840@gmail.com')"
       }
     },
     "betCfg": {
       ".read": "auth != null",
-      ".write": "auth != null && (auth.token.email === 'bangexx01@gmail.com')",
+      ".write": "auth != null && (auth.token.email === 'fedli840@gmail.com')",
       "$game": {
         ".validate": "newData.hasChild('chips')"
       }
     },
     "signinCfg": {
       ".read": "auth != null",
-      ".write": "auth != null && (auth.token.email === 'bangexx01@gmail.com')"
+      ".write": "auth != null && (auth.token.email === 'fedli840@gmail.com')"
     },
     "giftCfg": {
       ".read": "auth != null",
-      ".write": "auth != null && (auth.token.email === 'bangexx01@gmail.com')"
+      ".write": "auth != null && (auth.token.email === 'fedli840@gmail.com')"
     },
     "fm": {
       ".read": "auth != null",
@@ -379,7 +379,7 @@
     "welcomed": {
       ".read": "auth != null",
       "$uid": {
-        ".write": "auth != null && (auth.uid === $uid || auth.token.email === 'bangexx01@gmail.com')"
+        ".write": "auth != null && (auth.uid === $uid || auth.token.email === 'fedli840@gmail.com')"
       }
     },
     "fxPrefs": {
@@ -400,36 +400,36 @@
     },
     "_owner": {
       ".read": "auth != null",
-      ".write": "auth != null && auth.token.email === 'bangexx01@gmail.com'"
+      ".write": "auth != null && auth.token.email === 'fedli840@gmail.com'"
     },
     "_cs": {
       ".read": "auth != null",
-      ".write": "auth != null && auth.token.email === 'bangexx01@gmail.com'"
+      ".write": "auth != null && auth.token.email === 'fedli840@gmail.com'"
     },
     "officialRooms": {
       ".read": "auth != null",
       "$id": {
         ".read": "auth != null",
-        ".write": "auth != null && (auth.token.email === 'bangexx01@gmail.com' || root.child('stafPanel').child(auth.uid).val() === true)"
+        ".write": "auth != null && (auth.token.email === 'fedli840@gmail.com' || root.child('stafPanel').child(auth.uid).val() === true)"
       }
     },
     "photoReset": {
       ".read": "auth != null",
       "$uid": {
-        ".write": "auth != null && auth.token.email === 'bangexx01@gmail.com'"
+        ".write": "auth != null && auth.token.email === 'fedli840@gmail.com'"
       }
     },
     "uidCustom": {
       ".read": "auth != null",
       "$nomor": {
-        ".write": "auth != null && (!data.exists() || data.child('uid').val() === auth.uid || auth.token.email === 'bangexx01@gmail.com')",
+        ".write": "auth != null && (!data.exists() || data.child('uid').val() === auth.uid || auth.token.email === 'fedli840@gmail.com')",
         ".validate": "newData.hasChildren(['uid'])"
       }
     },
     "uidAliasOf": {
       ".read": "auth != null",
       "$uid": {
-        ".write": "auth != null && (auth.uid === $uid || auth.token.email === 'bangexx01@gmail.com')"
+        ".write": "auth != null && (auth.uid === $uid || auth.token.email === 'fedli840@gmail.com')"
       }
     },
     "stafPanel": {
@@ -441,7 +441,7 @@
     "tabBg": {
       ".read": "auth != null",
       "$tab": {
-        ".write": "auth != null && (auth.token.email === 'bangexx01@gmail.com' || root.child('stafPanel').child(auth.uid).val() === true)"
+        ".write": "auth != null && (auth.token.email === 'fedli840@gmail.com' || root.child('stafPanel').child(auth.uid).val() === true)"
       }
     },
     "moments": {
@@ -499,11 +499,11 @@
     },
     "appCfg": {
       ".read": "auth != null",
-      ".write": "auth != null && (auth.token.email === 'bangexx01@gmail.com')"
+      ".write": "auth != null && (auth.token.email === 'fedli840@gmail.com')"
     },
     "gameCfg": {
       ".read": "auth != null",
-      ".write": "auth != null && (auth.token.email === 'bangexx01@gmail.com')"
+      ".write": "auth != null && (auth.token.email === 'fedli840@gmail.com')"
     },
     "roomsBg": {
       ".read": "auth != null",
@@ -515,7 +515,7 @@
     },
     "roomsHidden": {
       ".read": "auth != null",
-      ".write": "auth != null && (auth.token.email === 'bangexx01@gmail.com')"
+      ".write": "auth != null && (auth.token.email === 'fedli840@gmail.com')"
     },
     "giftHidden": {
       ".read": "auth != null",
@@ -523,7 +523,7 @@
     },
     "nameReset": {
       ".read": "auth != null",
-      ".write": "auth != null && (auth.token.email === 'bangexx01@gmail.com')"
+      ".write": "auth != null && (auth.token.email === 'fedli840@gmail.com')"
     },
     "rocketWin": {
       ".read": "auth != null",

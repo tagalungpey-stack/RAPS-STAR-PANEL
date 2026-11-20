@@ -1,7 +1,7 @@
 rules_version = '2';
 
 // ============================================================
-// Viza Chat - Firebase Storage Rules
+// RAPS STAR - Firebase Storage Rules
 // Tempel ke Firebase Console > Storage > Rules > Publish
 // ============================================================
 
@@ -15,7 +15,7 @@ service firebase.storage {
     function isPemilik() {
       return signedIn()
         && request.auth.token.email != null
-        && request.auth.token.email.lower() == "bangexx01@gmail.com";
+        && request.auth.token.email.lower() == "fedli840@gmail.com";
     }
 
     function terdaftarPanel() {

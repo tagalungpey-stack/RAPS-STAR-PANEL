@@ -13,7 +13,7 @@ import {
   getDatabase, ref as dRef, set as dSet, get as dGet, update as dUpdate, remove as dRemove
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-database.js";
 import {
-  getStorage, ref as sRef, uploadBytesResumable, getDownloadURL
+  getStorage, ref as sRef, uploadBytesResumable, getDownloadURL, deleteObject
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-storage.js";
 
 /* ================= konfigurasi ================= */
@@ -69,15 +69,10 @@ const kunciVip = (id) => String(id).replace(/[.#$\[\]/]/g, "_");
  *  daripada menulis langsung dari browser, yang sering ditolak aturan Firebase
  *  dengan "PERMISSION_DENIED". */
 async function tulisRtdbServer(path, data, hapus = false) {
-  const t = await auth.currentUser?.getIdToken();
-  if (!t) throw new Error("Sesi panel tidak ditemukan, coba keluar lalu masuk lagi");
-  const r = await fetch(DOMPET_BASE + "/panel-rtdb", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ t, path, data: hapus ? null : data, hapus }),
-  });
-  const j = await r.json().catch(() => null);
-  if (!j || !j.ok) throw new Error((j && j.e) || ("HTTP " + r.status));
+  if (!auth.currentUser) throw new Error("Sesi panel tidak ditemukan, coba keluar lalu masuk lagi");
+  const simpul = dRef(rtdb, path);
+  if (hapus) await dRemove(simpul);
+  else await dSet(simpul, data);
   return true;
 }
 
@@ -369,73 +364,14 @@ async function unggahBerkas(berkas, folder, lapor) {
     ? ukuranTeks(asliUkuran) + " → " + ukuranTeks(berkas.size)
     : "";
   if (lapor) lapor(2);
+
+  if (!auth.currentUser) throw new Error("Sesi login tidak ada, muat ulang panel lalu masuk lagi");
+  if (berkas.size > 20 * 1024 * 1024) throw new Error("Berkas lebih dari 20 MB, kecilkan dulu");
+
   const namaAman = String(berkas.name || "aset").replace(/[^a-zA-Z0-9._-]/g, "_");
   const ekstensi = namaAman.split(".").pop().toLowerCase();
 
-  // 1) Jalur utama: simpan di VPS dompet RAPS STAR. Tidak perlu Firebase Storage.
-  try {
-    if (berkas.size > 8 * 1024 * 1024) throw new Error("Berkas lebih dari 8 MB, kecilkan dulu");
-    if (lapor) lapor(0);
-    const t = await auth.currentUser?.getIdToken();
-    if (!t) throw new Error("Sesi login tidak ada, muat ulang panel");
-    const dasar = folder + "-" + namaAman.replace(/\.[^.]+$/, "");
-    // Kirim biner mentah: tidak membengkak seperti base64, dan persentasenya asli.
-    const alamat = DOMPET_BASE + "/aset-upload?raw=1"
-      + "&t=" + encodeURIComponent(t)
-      + "&name=" + encodeURIComponent(dasar)
-      + "&ext=" + encodeURIComponent(ekstensi);
-    const j = await new Promise((selesai, gagal) => {
-      const xhr = new XMLHttpRequest();
-      // Progres tidak boleh mundur walau unggahan diulang dari awal.
-      let maks = 0;
-      const naik = (p) => {
-        if (!lapor) return;
-        if (p > maks) { maks = p; lapor(p); }
-      };
-      let coba = 0;
-      const kirim = () => {
-      xhr.open("POST", alamat, true);
-      xhr.setRequestHeader("Content-Type", berkas.type || TIPE_BERKAS[ekstensi] || "application/octet-stream");
-      xhr.timeout = 300000;
-      xhr.upload.onprogress = (e) => {
-        if (!lapor) return;
-        if (e.lengthComputable) naik(Math.min(99, Math.round((e.loaded / e.total) * 100)));
-        else naik(50);
-      };
-      xhr.onload = () => {
-        let hasil = null;
-        try { hasil = JSON.parse(xhr.responseText || "null"); } catch (e) { /* bukan JSON */ }
-        if (hasil && hasil.ok && hasil.url) return selesai(hasil);
-        gagal(new Error((hasil && hasil.e) || ("HTTP " + xhr.status)));
-      };
-      xhr.onerror = () => {
-        // Jaringan HP sering putus di tengah unggahan: ulangi sekali dulu.
-        if (coba < 1) { coba += 1; setTimeout(kirim, 800); return; }
-        window.__galatVpsJaringan = true;
-        gagal(new Error("Jaringan terputus saat mengunggah"));
-      };
-      xhr.ontimeout = () => {
-        window.__galatVpsJaringan = true;
-        gagal(new Error("Unggahan lebih dari 5 menit, coba lagi atau kecilkan berkas"));
-      };
-      xhr.send(berkas);
-      };
-      kirim();
-    });
-    if (lapor) lapor(100);
-    return j.url;
-  } catch (eVps) {
-    window.__galatVps = String(eVps?.message || eVps);
-    const putus = window.__galatVpsJaringan === true;
-    window.__galatVpsJaringan = false;
-    // Kalau server VPS MENOLAK (mis. sesi/peran), jangan diam-diam pindah ke
-    // Firebase: unggahan akan mulai dari 0% dan sering menggantung. Tampilkan
-    // alasannya supaya jelas apa yang harus dibetulkan.
-    if (!putus) throw new Error(window.__galatVps);
-    if (lapor) lapor(0);
-  }
-
-  // 2) Cadangan: Firebase Storage, hanya kalau VPS menolak.
+  // Unggah langsung ke Firebase Storage proyek raps-star. Tidak ada server lain.
   const jalur = `aset/${folder}/${Date.now()}-${namaAman}`;
   const rujukan = sRef(storage, jalur);
   const tugas = uploadBytesResumable(rujukan, berkas, {
@@ -444,10 +380,21 @@ async function unggahBerkas(berkas, folder, lapor) {
   });
   await new Promise((selesai, gagal) => {
     tugas.on("state_changed",
-      (s) => { if (lapor) lapor(Math.round((s.bytesTransferred / s.totalBytes) * 100)); },
+      (s) => { if (lapor) lapor(Math.min(99, Math.round((s.bytesTransferred / s.totalBytes) * 100))); },
       gagal, selesai);
   });
-  return await getDownloadURL(rujukan);
+  const url = await getDownloadURL(rujukan);
+  if (lapor) lapor(100);
+
+  // Catat di Firestore supaya muncul di halaman Daftar aset.
+  try {
+    await fsSetDoc(doc(db, "aset", jalur.replace(/\//g, "_")), {
+      nama: namaAman, folder, jalur, url,
+      ukuran: berkas.size, jenis: ekstensi,
+      waktu: serverTimestamp(), oleh: auth.currentUser.email || ""
+    });
+  } catch (e) { /* pencatatan opsional, unggahan tetap berhasil */ }
+  return url;
 }
 
 /** Markah pemilih sumber: lewat tautan atau unggah berkas dari perangkat. */
@@ -2992,10 +2939,16 @@ async function gambarAsetVps() {
     kotak.className = "sub";
     kotak.textContent = "Memuat…";
     try {
-      const t = await auth.currentUser?.getIdToken();
-      const r = await fetch(DOMPET_BASE + "/aset-list?t=" + encodeURIComponent(t || ""), { method: "GET" });
-      const j = await r.json().catch(() => null);
-      if (!j || !j.ok) throw new Error((j && j.e) || ("HTTP " + r.status));
+      const snap = await fsGetDocs(collection(db, "aset"));
+      const list = snap.docs.map((d) => ({
+        id: d.id,
+        nama: d.data().nama || d.data().jalur || d.id,
+        jalur: d.data().jalur || "",
+        url: d.data().url || "",
+        ukuran: Number(d.data().ukuran) || 0,
+        simpan: "storage"
+      })).sort((a, b) => String(a.nama).localeCompare(String(b.nama)));
+      const j = { ok: true, list };
       if (!j.list || !j.list.length) {
         kotak.innerHTML = 'Belum ada aset. Unggah dulu dari halaman <b>Frame &amp; banner</b>, <b>Aset &amp; VIP</b>, atau <b>Kirim ke user</b>.';
         return;
@@ -3009,11 +2962,11 @@ async function gambarAsetVps() {
           <tbody>${j.list.map((f) => `<tr>
             <td>${kecil(f)}</td>
             <td>${Math.max(1, Math.round((Number(f.ukuran) || 0) / 1024))} KB</td>
-            <td>${f.simpan === "disk" ? "VPS berkas" : "VPS database"}</td>
+            <td>Firebase Storage</td>
             <td><code style="font-size:11px;word-break:break-all">${aman(f.url)}</code></td>
             <td style="white-space:nowrap">
               <button class="tombolKecil" data-salin="${aman(f.url)}">Salin</button>
-              <button class="tombolKecil" data-hapusaset="${aman(f.nama)}">Hapus</button>
+              <button class="tombolKecil" data-hapusaset="${aman(f.id)}">Hapus</button>
             </td>
           </tr>`).join("")}</tbody>
         </table>`;
@@ -3022,16 +2975,13 @@ async function gambarAsetVps() {
         catch (e) { toast(b.dataset.salin); }
       }));
       kotak.querySelectorAll("[data-hapusaset]").forEach((b) => b.addEventListener("click", async () => {
-        if (!confirm("Hapus berkas ini dari VPS?")) return;
+        if (!confirm("Hapus berkas ini?")) return;
         try {
-          const t2 = await auth.currentUser?.getIdToken();
-          const r2 = await fetch(DOMPET_BASE + "/aset-hapus", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ t: t2, nama: b.dataset.hapusaset })
-          });
-          const j2 = await r2.json().catch(() => null);
-          if (!j2 || !j2.ok) throw new Error((j2 && j2.e) || ("HTTP " + r2.status));
+          const isi = j.list.find((f) => f.id === b.dataset.hapusaset);
+          if (isi && isi.jalur) {
+            try { await deleteObject(sRef(storage, isi.jalur)); } catch (e) { /* berkas mungkin sudah tidak ada */ }
+          }
+          await fsDeleteDoc(doc(db, "aset", b.dataset.hapusaset));
           toast("Berkas dihapus");
           muat();
         } catch (e) { toast("Gagal menghapus: " + (e?.message || e), true); }
@@ -3121,16 +3071,10 @@ async function gambarAset() {
     tombol.disabled = true;
     tombol.textContent = "Cek…";
     try {
-      const t = await auth.currentUser?.getIdToken();
-      const r = await fetch(DOMPET_BASE + "/aset-cek", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ t, url: it.url }),
-      });
-      const j = await r.json().catch(() => null);
-      if (!j || !j.ok) throw new Error((j && j.e) || ("HTTP " + r.status));
+      const r = await fetch(it.url, { method: "GET", cache: "no-store" });
+      const j = { ok: true, hidup: r.ok, status: r.status };
       if (j.hidup) {
-        toast("Tautan hidup (HTTP " + j.status + (j.ukuran ? ", " + ukuranTeks(j.ukuran) : "") + ")");
+        toast("Tautan hidup (HTTP " + j.status + ")");
         tombol.textContent = "OK";
       } else {
         toast("Tautan MATI (HTTP " + j.status + "), item disembunyikan dari Store. Unggah ulang berkasnya.", true);
