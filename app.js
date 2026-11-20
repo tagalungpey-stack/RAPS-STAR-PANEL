@@ -356,6 +356,20 @@ async function kecilkanBerkas(berkas) {
   }
 }
 
+/** Alamat fungsi unggah di server Base44. Token GitHub disimpan di server,
+ *  panel hanya mengirim token login Firebase. */
+const FUNGSI_ASET = "https://superagent-74f44334.base44.app/functions/rapsUnggahAset";
+
+/** Baca berkas jadi teks base64 tanpa awalan data:. */
+function bacaBase64(berkas) {
+  return new Promise((selesai, gagal) => {
+    const r = new FileReader();
+    r.onload = () => selesai(String(r.result || "").replace(/^data:[^,]*,/, ""));
+    r.onerror = () => gagal(new Error("Gagal membaca berkas dari perangkat"));
+    r.readAsDataURL(berkas);
+  });
+}
+
 async function unggahBerkas(berkas, folder, lapor) {
   if (lapor) lapor(1);
   const asliUkuran = berkas.size;
@@ -366,35 +380,36 @@ async function unggahBerkas(berkas, folder, lapor) {
   if (lapor) lapor(2);
 
   if (!auth.currentUser) throw new Error("Sesi login tidak ada, muat ulang panel lalu masuk lagi");
-  if (berkas.size > 20 * 1024 * 1024) throw new Error("Berkas lebih dari 20 MB, kecilkan dulu");
+  if (berkas.size > 10 * 1024 * 1024) throw new Error("Berkas lebih dari 10 MB, kecilkan dulu");
 
   const namaAman = String(berkas.name || "aset").replace(/[^a-zA-Z0-9._-]/g, "_");
   const ekstensi = namaAman.split(".").pop().toLowerCase();
+  const contentType = berkas.type || TIPE_BERKAS[ekstensi] || "application/octet-stream";
 
-  // Unggah langsung ke Firebase Storage proyek raps-star. Tidak ada server lain.
-  const jalur = `aset/${folder}/${Date.now()}-${namaAman}`;
-  const rujukan = sRef(storage, jalur);
-  const tugas = uploadBytesResumable(rujukan, berkas, {
-    contentType: berkas.type || TIPE_BERKAS[ekstensi] || "application/octet-stream",
-    cacheControl: "public,max-age=31536000"
+  const idToken = await auth.currentUser.getIdToken();
+  const data = await bacaBase64(berkas);
+  if (lapor) lapor(35);
+
+  // Simpan di repo aset publik (gratis) lewat fungsi server.
+  const r = await fetch(FUNGSI_ASET, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ idToken, folder, nama: namaAman, contentType, data })
   });
-  await new Promise((selesai, gagal) => {
-    tugas.on("state_changed",
-      (s) => { if (lapor) lapor(Math.min(99, Math.round((s.bytesTransferred / s.totalBytes) * 100))); },
-      gagal, selesai);
-  });
-  const url = await getDownloadURL(rujukan);
+  if (lapor) lapor(90);
+  const j = await r.json().catch(() => null);
+  if (!j || !j.ok) throw new Error((j && j.e) || ("HTTP " + r.status));
   if (lapor) lapor(100);
 
   // Catat di Firestore supaya muncul di halaman Daftar aset.
   try {
-    await fsSetDoc(doc(db, "aset", jalur.replace(/\//g, "_")), {
-      nama: namaAman, folder, jalur, url,
-      ukuran: berkas.size, jenis: ekstensi,
+    await fsSetDoc(doc(db, "aset", String(j.jalur || namaAman).replace(/\//g, "_")), {
+      nama: namaAman, folder, jalur: j.jalur || "", url: j.url,
+      ukuran: Number(j.ukuran) || berkas.size, jenis: ekstensi,
       waktu: serverTimestamp(), oleh: auth.currentUser.email || ""
     });
   } catch (e) { /* pencatatan opsional, unggahan tetap berhasil */ }
-  return url;
+  return j.url;
 }
 
 /** Markah pemilih sumber: lewat tautan atau unggah berkas dari perangkat. */
@@ -2962,7 +2977,7 @@ async function gambarAsetVps() {
           <tbody>${j.list.map((f) => `<tr>
             <td>${kecil(f)}</td>
             <td>${Math.max(1, Math.round((Number(f.ukuran) || 0) / 1024))} KB</td>
-            <td>Firebase Storage</td>
+            <td>Repo aset (gratis)</td>
             <td><code style="font-size:11px;word-break:break-all">${aman(f.url)}</code></td>
             <td style="white-space:nowrap">
               <button class="tombolKecil" data-salin="${aman(f.url)}">Salin</button>
@@ -2975,7 +2990,7 @@ async function gambarAsetVps() {
         catch (e) { toast(b.dataset.salin); }
       }));
       kotak.querySelectorAll("[data-hapusaset]").forEach((b) => b.addEventListener("click", async () => {
-        if (!confirm("Hapus berkas ini?")) return;
+        if (!confirm("Hapus berkas ini dari daftar? Berkasnya tetap ada di repo aset.")) return;
         try {
           const isi = j.list.find((f) => f.id === b.dataset.hapusaset);
           if (isi && isi.jalur) {
